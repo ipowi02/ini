@@ -12,20 +12,29 @@
 #define INI_BUFLEN 256
 #define INI_SECTNAMELEN 32
 
-#define ini_isempty(s) ((s)[1] == '\1')
-#define ini_lnempty(ln) ini_isempty((ln).key)
-
 
 struct line {
-     char key[INI_BUFLEN/2];
+     union {
+	  char key[INI_BUFLEN/2];
+	  struct {
+	       // Note: the order of union members are UB, although sensible C compilers do it this way 
+	       unsigned char padding;
+	       unsigned isempty : 1;
+	  };
+     };
      char val[INI_BUFLEN/2];
      // use strlen on them to get their actual length, INI_BUFLEN is a maximum to avoid heap allocations
 };
 
 struct section {
      da_member(struct line);
-     char name[INI_SECTNAMELEN];
-     // TODO: rewrite as char*, it segfaults that way for some reason?
+     union {
+	  char name[INI_SECTNAMELEN];
+	  struct {
+	       unsigned char padding;
+	       unsigned isempty : 1;
+	  };
+     };
 };
 
 struct ini {
@@ -57,7 +66,7 @@ int line_nonzeroed(struct line *out, FILE *f) {
      if (c == EOF)
 	  return -2;
      if (c == '\n') {
-	  out->key[1] = '\1'; // to indicate an empty line, but still make it compatible with string functions
+	  out->isempty = 1; // to indicate an empty line, but still make it compatible with string functions
 	  goto end;
      }
      if (c == '[') {
@@ -87,7 +96,7 @@ int line_nonzeroed(struct line *out, FILE *f) {
 			      ; // skip rest of the line
 
 			 if (prev == '\n') {
-			      out->key[1] = '\1'; // empty line
+			      out->isempty = 1; // empty line
 			 } 
 			 goto end;
 		    } else {	 
@@ -112,7 +121,7 @@ int line_nonzeroed(struct line *out, FILE *f) {
      } while (c != '\n' && c != EOF);
      
 end:
-     if (!foundeq && !ini_lnempty(*out)) {
+     if (!foundeq && !out->isempty) {
 	  fprintf(stderr, "No key-val separator found on line\n");
 	  return -1;
      }
@@ -178,7 +187,7 @@ int section_nonzeroed(struct section *s, int named, FILE *f) {
 
      if (!named) {
 	  s->name[0] = '\0';
-	  s->name[1] = '\1'; // sentinel to indicate empty name
+	  s->isempty = 1; 
      }
 
      struct line ln;
