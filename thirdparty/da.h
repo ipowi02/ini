@@ -29,7 +29,7 @@
 
 
 #define da_init(xs) memset((xs), 0, sizeof(*(xs)))
-#define da_free(xs) DA_FREE((xs).data)
+#define da_free(xs) DA_FREE((xs)->data)
 #define da_deinit(xs) do { da_free(xs); da_init(xs); } while(0)
 
 /* ACCESSORS */
